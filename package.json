@@ -1,0 +1,23 @@
+{
+  "name": "1",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "bin": {
+    "youtube": "bin/yt",
+    "yt": "bin/yt"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "chalk": "^5.4.1",
+    "figlet": "^1.8.0",
+    "inquirer": "^12.5.0",
+    "openai": "^4.89.0",
+    "youtube-transcript": "^1.2.1"
+  }
+}
