@@ -9,7 +9,7 @@
 /____/                       
 ```
 
-`ytAi` is a command-line tool that helps you analyze YouTube videos using OpenAI.  
+`ytAi` is a command-line tool that helps you analyze yt videos using OpenAI.  
 It downloads the video transcript, sends it to a pre-defined assistant, and stores the result locally on your machine in a Markdown file.
 
 ---
@@ -19,7 +19,7 @@ It downloads the video transcript, sends it to a pre-defined assistant, and stor
 This CLI tool offers the following capabilities:
 
 - 🧠 Manage assistants (create/delete)
-- 📥 Download transcripts from YouTube videos
+- 📥 Download transcripts from yt videos
 - 🤖 Analyze transcripts using OpenAI assistants
 
 ---
@@ -75,7 +75,7 @@ yt
 │   └── 🗑️ Removes the assistant from OpenAI
 
 📂 Transcript
-└── 📥 Download YouTube video transcripts
+└── 📥 Download yt video transcripts
 
 📂 Transcript and AI
 └── 🤖 Download transcripts and analyze them using pre-defined assistants
