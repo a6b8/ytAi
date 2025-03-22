@@ -129,7 +129,7 @@ class CLI {
                 'type': 'list',
                 'name': 'selection',
                 'message': 'Select the output folder path:',
-                'choices': [ process.cwd(), defaultPath]
+                'choices': [ process.cwd(), defaultPath  ]
             }
         ] )
 
