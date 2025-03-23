@@ -135,6 +135,7 @@ class CLI {
     async #setOutputFolder() {
         const { outputFolder } = this.#config['environment'] 
         const defaultPath = modifyPath( { 'path': outputFolder } )
+
         const { defaultFolder } = this.#state['userConfig']
         const userFolder = modifyPath( { 'path': defaultFolder } )
 
@@ -159,10 +160,6 @@ class CLI {
                 'default': selection
             }
         ] )
-              
-
-
-
 
         return { outputFolderPath }
     }
