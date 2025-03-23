@@ -21,12 +21,19 @@ class CLI {
     constructor() {
         this.#config = config
         this.#state = {}
+        this.#addHeadline()
+    }
 
+
+    async refresh() {
+        console.log( '' )
+        console.log( '🔄 Restarting...' )
+
+        await this.start()
     }
 
 
     async start() {
-        this.#addHeadline()
         const { url } = await this.#setYoutubeUrl()
         const { configFolderPath, envFilePath } = await this.#setConfigFolder()
         this.#state = { configFolderPath, envFilePath }
@@ -34,20 +41,41 @@ class CLI {
         const { aiProvider, aiCredentials } = await this.#getAiCredentials( { processingMode } )
         this.#ytGPT = new YouGPT( { aiProvider, aiCredentials } )
 
-
         if( processingMode === 'manageAssistant' ) {
             const { assistantCMD } = await this.#setAssistantCommand()
-            const { result } = await this.#executeAssistantCommand( { assistantCMD } )
-            return true
+            if( assistantCMD === 'Create Assistant' ) {
+                await this.#createAssistant()
+            } else if( assistantCMD === 'Delete Assistant' ) {
+                await this.deleteAssistant()
+            }
+
+            return await this.refresh()
         }
 
         const { outputFolderPath } = await this.#setOutputFolder()
-        if( processingMode === 'transcriptAndAI' ) {
-            const { assistantId } = await this.#setAssistant( { aiProvider, aiCredentials } )
-            await this.#ytGPT.start( { url, assistantId } )
+        const files = {
+            'status': false,
+            'transript': null,
+            'ai': null
         }
 
-        return true
+        if( processingMode === 'onlyTranscript' ) {
+            const { status, result } = await this.#ytGPT
+                .getTranscript( { url } )
+            files['transcript'] = { status, result }
+            files['status'] = status
+        } else if( processingMode === 'transcriptAndAI' ) {
+            const { assistantId, assistantName } = await this.#setAssistant( { aiProvider, aiCredentials } )
+            const { userMessage } = await this.#setUserMessage( { assistantName } )
+            const { status, transcript, ai } = await this.#ytGPT
+                .transcriptToAI( { url, assistantId, userMessage } )
+            files['transcript'] = { status, result: transcript }
+            files['ai'] = { status, result: ai }
+            files['status'] = status
+        }
+        this.#saveFiles( { outputFolderPath, files } )
+
+        return await this.refresh()
     }
 
 
@@ -62,10 +90,8 @@ class CLI {
 
 
     async #setConfigFolder() {
-        const { configFolder } = this.#config['cli']
+        const { configFolder } = this.#config['environment']
         const defaultPath = modifyPath( { 'path': configFolder } )
-
-        // create a prompt to ask the user for the config folder
 
         const { configFolderPath } = await inquirer.prompt( [
             {
@@ -78,7 +104,7 @@ class CLI {
 
         const envFilePath = path.join( 
             configFolderPath, 
-            this.#config['cli']['envName'] 
+            this.#config['environment']['envName'] 
         )
 
         if( fs.accessSync( envFilePath, fs.constants.R_OK ) ) {
@@ -95,7 +121,7 @@ class CLI {
 
 
     async #setOutputFolder() {
-        const { outputFolder } = this.#config['cli'] 
+        const { outputFolder } = this.#config['environment'] 
         const defaultPath = modifyPath( { 'path': outputFolder } )
 
         const { selection } = await inquirer.prompt( [
@@ -103,7 +129,7 @@ class CLI {
                 'type': 'list',
                 'name': 'selection',
                 'message': 'Select the output folder path:',
-                'choices': [ defaultPath, process.cwd() ]
+                'choices': [ process.cwd(), defaultPath  ]
             }
         ] )
 
@@ -166,59 +192,103 @@ class CLI {
     }
 
 
-    async #executeAssistantCommand( { assistantCMD } ) {
-        if( assistantCMD === 'Create Assistant' ) {
-            const { name, model, temperature, response_format } = this.#config['ai']['assistant']['default']
+    async #createAssistant() {
+        const { name, model, temperature, response_format } = this.#config['ai']['assistant']['default']
 
-            const values = [ 
-                [ name,            'name'            ], 
-                [ '',              'instructions'    ],
-                [ model,           'model'           ], 
-                [ temperature,     'temperature'     ], 
-                [ response_format, 'response_format' ],
-            ]
+        const assistantFolderPath = path.join(
+            this.#state['configFolderPath'],
+            this.#config['environment']['assistantFolder']
+        )
+        
+        const availableAssistants = fs.readdirSync(assistantFolderPath, { withFileTypes: true })
+            .filter( dirent => dirent.isDirectory())
+            .map( dirent => {
+                const assistantPath = path.join( 
+                    assistantFolderPath, 
+                    dirent.name,
+                    this.#config['environment']['instructionFolder'],
+                    this.#config['environment']['instructionFile']
+                )
+                console.log( 'Assistant Path:', assistantPath )
 
-            let assistantValues = {}
-            for( const [ value, key ] of values ) {
-                const { newValue } = await inquirer.prompt( [
-                    {
-                        'type': 'input',
-                        'name': 'newValue',
-                        'message': `Enter the value for ${key}:`,
-                        'default': value
-                    }
-                ] )
-                assistantValues[ key ] = newValue
+                const instruction = fs.readFileSync( assistantPath, 'utf-8' )
+                const result = [ 
+                    [ dirent.name,     'name',            false  ], 
+                    [ instruction,     'instructions',    false  ],
+                    [ model,           'model',           true   ], 
+                    [ temperature,     'temperature',     true   ], 
+                    [ response_format, 'response_format', false  ],
+                    [ [ { 'type': 'file_search' } ], 'tools', false ]
+                ]
+
+                return result
+            } )
+
+        const { assistantSelection } = await inquirer.prompt( [
+            {
+                'type': 'list',
+                'name': 'assistantSelection',
+                'message': 'Select the assistant:',
+                'choices': availableAssistants.map( ( assistant ) => assistant[ 0 ][ 0 ] )
             }
-            assistantValues['tools'] = [ { 'type': 'file_search' } ]
-            this.#ytGPT.createAssistant( assistantValues )
-        } else if( assistantCMD === 'Delete Assistant' ) {
-            const { data } = await this.#ytGPT.getAssistants()
-            const list = data.map( ( { id, name } ) => [ name, id ] )
-            const choices = list.map( ( [ name, id ] ) => name )
+        ] )
 
-            if( choices.length === 0 ) {
-                console.log( 'No assistants to delete' )
-                process.exit( 1 )
+        const values = availableAssistants
+            .find( ( assistant ) => assistant[ 0 ][ 0 ] === assistantSelection )
+
+        let assistantValues = {}
+        for( const [ value, key, show ] of values ) {
+            if( !show ) {
+                assistantValues[ key ] = value
+                continue
             }
 
-            const { assistantIdName } = await inquirer.prompt( [
+            const { newValue } = await inquirer.prompt( [
                 {
-                    'type': 'list',
-                    'name': 'assistantIdName',
-                    'message': 'Select the assistant to delete:',
-                    choices
+                    'type': 'input',
+                    'name': 'newValue',
+                    'message': `Enter the value for ${key}:`,
+                    'default': value
                 }
             ] )
-            const assistantId = list
-                .find( ( [ name, id ] ) => name === assistantIdName )[ 1 ]
-
-            this.#ytGPT.deleteAssistant( { assistantId } )
-
-
-
-            console.log( 'Delete Assistant' )
+            assistantValues[ key ] = newValue
         }
+
+        assistantValues['tools'] = [ { 'type': 'file_search' } ]
+        this.#ytGPT.createAssistant( assistantValues )
+    }
+
+
+    async deleteAssistant() {
+        const { data } = await this.#ytGPT.getAssistants()
+        const list = data.map( ( { id, name } ) => [ name, id ] )
+        const choices = list.map( ( [ name, id ] ) => name )
+
+        if( choices.length === 0 ) {
+            console.log( 'No assistants to delete' )
+            return false
+        }
+
+        const { assistantIdName } = await inquirer.prompt( [
+            {
+                'type': 'list',
+                'name': 'assistantIdName',
+                'message': 'Select the assistant to delete:',
+                choices
+            }
+        ] )
+        const assistantId = list
+            .find( ( [ name, id ] ) => name === assistantIdName )[ 1 ]
+
+        this.#ytGPT.deleteAssistant( { assistantId } )
+
+        return true
+
+    }
+
+
+    async #executeAssistantCommand( { assistantCMD } ) {
+
 
         return true
     }
@@ -277,8 +347,39 @@ class CLI {
 
         const assistant = assistants['data']
             .find( ( { name } ) => name === assistantName )
-        return { 'assistantId': assistant.id }
+
+        return { 'assistantId': assistant.id, 'assistantName': assistantName }
     }
+
+
+    async #setUserMessage( { assistantName } ) {
+        const p = path.join(
+            this.#state['configFolderPath'],
+            this.#config['environment']['assistantFolder'],
+            assistantName,
+            this.#config['environment']['userInputFolder']
+        )
+
+        const choices = fs.readdirSync( p, { withFileTypes: true } )
+            .filter( dirent => dirent.isFile() )
+            .map( dirent => dirent.name )
+
+        const { userSelection } = await inquirer.prompt( [
+            {
+                'type': 'list',
+                'name': 'userSelection',
+                'message': 'Select the user message:',
+                'choices': choices
+            }
+        ] )
+
+        const userMessage = fs
+            .readFileSync( path.join( p, userSelection ), 'utf-8' )
+            .trim()
+
+        return { userMessage }
+    }
+
 
 
 
@@ -295,6 +396,30 @@ class CLI {
         
         return { url }
     }
+
+
+    #saveFiles( { outputFolderPath, files } ) {
+        const { status, transcript, ai } = files
+        if( !status ) { return false }
+
+        const fileName = transcript['result']['videoId']
+        const transcriptContent = transcript['result']['transcript']
+        const filePath = path.join( outputFolderPath, fileName + '.txt' )
+        fs.writeFileSync( filePath, transcriptContent, 'utf-8' )
+        console.log( '📝 Transcript saved:', filePath )
+
+        if( ai !== null ) {
+            if( ai['status'] === false ) { return false }   
+            const aiFileName = fileName + '.md'
+            const aiContent= ai['result']
+            const aiFilePath = path.join( outputFolderPath, aiFileName )
+            fs.writeFileSync( aiFilePath, aiContent, 'utf-8' )
+            console.log( '🧠 AI saved:', aiFilePath )
+        }
+
+        return true
+    }
+
 }
 
 export { CLI }
