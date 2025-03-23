@@ -10,14 +10,6 @@ const config = {
         'outputFolder': '~/Desktop'
     },
     'cli': {
-        // 'envName': 'cred.env',
-        // 'configFolder': '~/.ytGPT',
-        // 'assistantFolder': 'assistants/',
-        // 'instructionFolder': 'instruction/',
-        // 'instructionFile': 'instruction.txt',
-        // 'userInputFolder': 'user_input/',
-        // 'outputFolder': '~/Desktop',
-
         'processingModeDefault': 'transcriptAndAI',
         'processingModes': [ 
             [ 'onlyTranscript',  '📝 Only Transcript'   ],
@@ -54,14 +46,6 @@ const config = {
                         'type': 'integer'
                     }
                 }
-            }
-        },
-        'assistant': {
-            'default': {
-                'name': 'MyGPT', 
-                'model': 'gpt-4o', 
-                'temperature': 0.5, 
-                'response_format': 'auto' 
             }
         }
     }
