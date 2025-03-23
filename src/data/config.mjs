@@ -1,22 +1,22 @@
 const config = {
     'environment': {
         'envName': 'cred.env',
-        'configName': 'config.json',
+        'userConfigName': 'config.mjs',
         'configFolder': '~/.ytGPT',
         'assistantFolder': 'assistants/',
         'instructionFolder': 'instruction/',
         'instructionFile': 'instruction.txt',
         'userInputFolder': 'user_input/',
-        'outputFolder': '~/Desktop',
+        'outputFolder': '~/Desktop'
     },
     'cli': {
-       // 'envName': 'cred.env',
-       // 'configFolder': '~/.ytGPT',
-       // 'assistantFolder': 'assistants/',
-       // 'instructionFolder': 'instruction/',
-       // 'instructionFile': 'instruction.txt',
-       // 'userInputFolder': 'user_input/',
-       // 'outputFolder': '~/Desktop',
+        // 'envName': 'cred.env',
+        // 'configFolder': '~/.ytGPT',
+        // 'assistantFolder': 'assistants/',
+        // 'instructionFolder': 'instruction/',
+        // 'instructionFile': 'instruction.txt',
+        // 'userInputFolder': 'user_input/',
+        // 'outputFolder': '~/Desktop',
 
         'processingModeDefault': 'transcriptAndAI',
         'processingModes': [ 

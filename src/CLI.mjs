@@ -5,6 +5,7 @@ import fs from 'fs'
 
 import os from 'os'
 import path from 'path'
+
 import { YouGPT } from './index.mjs'
 import { config } from './data/config.mjs'
 import { modifyPath, envToObject } from './helpers/utils.mjs'
@@ -35,8 +36,8 @@ class CLI {
 
     async start() {
         const { url } = await this.#setYoutubeUrl()
-        const { configFolderPath, envFilePath } = await this.#setConfigFolder()
-        this.#state = { configFolderPath, envFilePath }
+        const { configFolderPath, envFilePath, userConfig } = await this.#setConfigFolder()
+        this.#state = { configFolderPath, envFilePath, userConfig }
         const { processingMode } = await this.#setProcessingMode()
         const { aiProvider, aiCredentials } = await this.#getAiCredentials( { processingMode } )
         this.#ytGPT = new YouGPT( { aiProvider, aiCredentials } )
@@ -90,7 +91,7 @@ class CLI {
 
 
     async #setConfigFolder() {
-        const { configFolder } = this.#config['environment']
+        const { configFolder, userConfigName } = this.#config['environment']
         const defaultPath = modifyPath( { 'path': configFolder } )
 
         const { configFolderPath } = await inquirer.prompt( [
@@ -116,20 +117,33 @@ class CLI {
             process.exit( 1 )
         }
 
-        return { configFolderPath, envFilePath }
+        const configPath = path.join( configFolderPath, userConfigName )
+        if( fs.accessSync( configPath, fs.constants.R_OK ) ) {
+            console.log( 
+                chalk.red( 
+                    `File ${configPath} does not exist or is not readable`
+                ) 
+            )
+            process.exit( 1 )
+        }
+        const { userConfig } = await import( configPath )
+
+        return { configFolderPath, envFilePath, userConfig }
     }
 
 
     async #setOutputFolder() {
         const { outputFolder } = this.#config['environment'] 
         const defaultPath = modifyPath( { 'path': outputFolder } )
+        const { defaultFolder } = this.#state['userConfig']
+        const userFolder = modifyPath( { 'path': defaultFolder } )
 
         const { selection } = await inquirer.prompt( [
             {
                 'type': 'list',
                 'name': 'selection',
                 'message': 'Select the output folder path:',
-                'choices': [ process.cwd(), defaultPath  ]
+                'choices': [ userFolder, process.cwd(), defaultPath  ]
             }
         ] )
 
@@ -193,7 +207,8 @@ class CLI {
 
 
     async #createAssistant() {
-        const { name, model, temperature, response_format } = this.#config['ai']['assistant']['default']
+        const { response_format } = this.#config['ai']['assistant']['default']
+        const { model, temperature } = this.#state['userConfig']['openai']
 
         const assistantFolderPath = path.join(
             this.#state['configFolderPath'],
