@@ -1,0 +1,11 @@
+The attached transcript is from a YouTube video and explains a trading indicator along with its characteristics.
+
+Task:
+- Analyze the transcript and extract the trading logic.
+- Based on this, create a complete Pine Script strategy for TradingView. The strategy should be suitable for highly volatile crypto tokens.
+
+Requirements:
+- Use indicator logic from the transcript; fill in missing details logically. Include risk management: stop-loss, take-profit, position sizing.
+- Target >70% profitability in backtesting.
+- Code must be clean, modular, well-commented.
+- All inputs must be logically named and categorized to allow easy adjustment.

@@ -13,8 +13,8 @@ const config = {
         'processingModeDefault': 'transcriptAndAI',
         'processingModes': [ 
             // [ 'onlyTranscript',  '📝 Only Transcript'   ],
-            [ 'transcriptAndAI', '🧠 Generate Transcript and use Assistant' ],
-            [ 'onlyAI',         '🧠 Onyl use Assistant'            ],
+            [ 'start', '🧠 START' ],
+            // [ 'onlyAI',         '🧠 Onyl use Assistant'            ],
             [ 'manageAssistant', '🧩 Manage Assistant'  ] 
         ],
         'headline': {

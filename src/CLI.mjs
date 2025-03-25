@@ -8,7 +8,7 @@ import path from 'path'
 
 import { YouGPT } from './index.mjs'
 import { config } from './data/config.mjs'
-import { modifyPath, envToObject } from './helpers/utils.mjs'
+import { modifyPath, envToObject, getKeyValueFromUrl } from './helpers/utils.mjs'
 import readline from 'readline'
 
 
@@ -35,7 +35,7 @@ class CLI {
 
 
     async start() {
-        const { url } = await this.#setYoutubeUrl()
+        const { videoId } = await this.#setYoutubeUrl()
         const { configFolderPath, envFilePath, userConfig } = await this.#setConfigFolder()
         this.#state = { configFolderPath, envFilePath, userConfig }
         const { processingMode } = await this.#setProcessingMode()
@@ -53,28 +53,41 @@ class CLI {
             return await this.refresh()
         }
 
-        const { outputFolderPath } = await this.#setOutputFolder()
-        const files = {
-            'status': false,
-            'transript': null,
-            'ai': null
+        const { outputFolderPath } = await this
+            .#setOutputFolder()
+        const { assistantId, assistantName, createTransscript, enableFileSelection } = await this
+            .#setAssistant( { aiProvider, aiCredentials } )
+        const { userMessage } = await this
+            .#setUserMessage( { assistantName } )
+
+        const fileStrings = []
+        if( createTransscript ) {
+            const { status, result } = await this.#ytGPT
+                .getTranscript( { videoId } )
+            if( status === false ) {
+                console.log( '❌ Error fetching transcript' )
+                return await this.refresh()
+            }
+            fileStrings.push( result )
         }
 
-        if( processingMode === 'onlyTranscript' ) {
-            const { status, result } = await this.#ytGPT
-                .getTranscript( { url } )
-            files['transcript'] = { status, result }
-            files['status'] = status
-        } else if( processingMode === 'transcriptAndAI' ) {
-            const { assistantId, assistantName } = await this.#setAssistant( { aiProvider, aiCredentials } )
-            const { userMessage } = await this.#setUserMessage( { assistantName } )
-            const { status, transcript, ai } = await this.#ytGPT
-                .transcriptToAI( { url, assistantId, userMessage } )
-            files['transcript'] = { status, result: transcript }
-            files['ai'] = { status, result: ai }
-            files['status'] = status
+        if( enableFileSelection ) {
+            const { additionalFileStrings } = await this
+                .#setAdditionalFiles( { videoId, outputFolderPath, assistantName } )
+            fileStrings.push( ...additionalFileStrings )
         }
-        this.#saveFiles( { outputFolderPath, files } )
+
+        const { status, result: aiAnswer } = await this.#ytGPT
+            .getAi( { userMessage, fileStrings, assistantId } )
+
+        this.#saveFiles( { 
+            outputFolderPath, 
+            videoId,  
+            assistantName, 
+            aiAnswer, 
+            fileStrings, 
+            createTransscript 
+        } )
 
         return await this.refresh()
     }
@@ -299,14 +312,6 @@ class CLI {
     }
 
 
-    async #executeAssistantCommand( { assistantCMD } ) {
-
-
-        return true
-    }
-
-
-
     async #getAiCredentials( { processingMode } ) {
         let aiProvider = null
         let aiCredentials = {}
@@ -328,26 +333,12 @@ class CLI {
     }
 
 
-/*
-    async #setAIProvider() {
-        const { providers, defaultProvider } = this.#config['ai']
-        const { aiProvider } = await inquirer.prompt( [
-            {
-                'type': 'list',
-                'name': 'aiProvider',
-                'message': 'Select the AI provider:',
-                'choices': Object.keys( providers ),
-                'default': defaultProvider
-            }
-        ] )
-
-        return { aiProvider }
-    }
-*/
-
     async #setAssistant( { aiProvider, aiCredentials } ) {
         const assistants = await this.#ytGPT.getAssistants()
         const choices = assistants['data'].map( ( { id, name } ) => name )
+        const { userConfig } = this.#state
+        const { activeAssistants } = userConfig
+
         const { assistantName } = await inquirer.prompt( [
             {
                 'type': 'list',
@@ -359,8 +350,14 @@ class CLI {
 
         const assistant = assistants['data']
             .find( ( { name } ) => name === assistantName )
+        const { createTransscript, enableFileSelection } = activeAssistants[ assistantName ]
 
-        return { 'assistantId': assistant.id, 'assistantName': assistantName }
+        return { 
+            'assistantId': assistant.id, 
+            'assistantName': assistantName, 
+            createTransscript, 
+            enableFileSelection 
+        }
     }
 
 
@@ -393,41 +390,110 @@ class CLI {
     }
 
 
+    async #setAdditionalFiles( { videoId, outputFolderPath, assistantName } ) {
+        const { fileSelectionRequired } = this.#state['userConfig']['activeAssistants'][ assistantName ]
+        const p = path.join( outputFolderPath, videoId )
+        if( fs.existsSync( p ) === false ) {
+            if( fileSelectionRequired ) {  
+                console.log( 'Folder does not exist, but is required:', p )
+                return await this.refresh() 
+            }
+            return { 'additionalFileStrings': [] }
+        }
 
+        const matches = this.#state['userConfig']['activeAssistants'][ assistantName ]['files']
+        const choices = fs
+            .readdirSync( p, { withFileTypes: true } )
+            .map( dirent => {
+                const { name, path } = dirent
+                const checked = matches.some( ( regex ) => regex.test( name ) )
+                const struct = { name, path, checked }
 
-    async #setYoutubeUrl() {
-        const { url } = await inquirer.prompt( [
+                return struct
+            } )
+
+        const { fileSelection } = await inquirer.prompt( [
             {
-                'type': 'input',
-                'name': 'url',
-                'message': 'Enter the YouTube Video URL:',
-                'validate': ( value ) => value.includes('youtube.com/watch?v=') ? true : 'Please enter a valid YouTube URL',
-                'default': 'https://www.youtube.com/watch?v=3DYEnch-2is'
+                'name': 'Select additional files:',
+                'type': 'checkbox',
+                'name': 'fileSelection',
+                'message': 'Select additional files:',
+                choices
             }
         ] )
+
+        const additionalFileStrings = fileSelection
+            .map( ( fileName ) => {
+                const{ path: _path } = choices
+                    .find( ( { name } ) => name === fileName )
+                const p =  path.join( _path, fileName )
+                const content = fs.readFileSync( p, 'utf-8' )
+
+                return content
+            } )  
         
-        return { url }
+        return { additionalFileStrings }
     }
 
 
-    #saveFiles( { outputFolderPath, files } ) {
-        const { status, transcript, ai } = files
-        if( !status ) { return false }
+    async #setYoutubeUrl() {
+        const { input } = await inquirer.prompt( [
+            {
+                'type': 'input',
+                'name': 'input',
+                'message': 'Enter the YouTube Video URL:',
+                'validate': ( value ) => {
+                    const isFullUrl = value.includes('youtube.com/watch?v=');
+                    const isVideoId = /^[\w-]{11}$/.test(value);
+                    if (isFullUrl || isVideoId) { return true }
 
-        const fileName = transcript['result']['videoId']
-        const transcriptContent = transcript['result']['transcript']
-        const filePath = path.join( outputFolderPath, fileName + '.txt' )
-        fs.writeFileSync( filePath, transcriptContent, 'utf-8' )
-        console.log( '📝 Transcript saved:', filePath )
+                    return 'Please enter a valid YouTube URL or Video ID (11 characters)';
+                },
+                'default': 'https://www.youtube.com/watch?v=3DYEnch-2is'
+            }
+        ] )
 
-        if( ai !== null ) {
-            if( ai['status'] === false ) { return false }   
-            const aiFileName = fileName + '.md'
-            const aiContent= ai['result']
-            const aiFilePath = path.join( outputFolderPath, aiFileName )
-            fs.writeFileSync( aiFilePath, aiContent, 'utf-8' )
-            console.log( '🧠 AI saved:', aiFilePath )
+        let videoId = ''
+        if( input.includes( 'youtube.com/watch?v=' ) ) {
+            const { v } = getKeyValueFromUrl( { 'url': input } )
+            videoId = v
+        } else {
+            videoId = input
         }
+
+        return { videoId }
+    }
+
+
+    #saveFiles( { outputFolderPath, videoId,  assistantName, aiAnswer, fileStrings, createTransscript } ) {
+        const p = path.join( outputFolderPath, videoId )
+        if( fs.existsSync( p ) === false ) {
+            fs.mkdirSync( p, { recursive: true } )
+        }
+
+        const { suffix } = this.#state['userConfig']['activeAssistants'][ assistantName ]
+        const n = [
+            createTransscript ? [ 'transcript.txt', fileStrings[ 0 ] ] : null,
+            [ `${assistantName}${suffix}`, aiAnswer ]
+        ]
+            .filter( ( a ) => a !== null )
+            .map( ( a ) => {
+                const [ name, content ] = a
+                const _p = path.join( p, name )
+                if( fs.existsSync( _p ) ) {
+                    console.log( 'File exists:', _p )
+                    return false
+                }
+
+                let str = ''
+                str += `https://www.youtube.com/watch?v=${videoId}\n`
+                // str += `Assistant: ${assistantName}\n\n`
+                str += `\n\n---\n\n`
+                str += content
+
+                fs.writeFileSync( _p, str, 'utf-8' )
+                return _p
+            } )
 
         return true
     }

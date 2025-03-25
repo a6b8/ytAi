@@ -32,9 +32,6 @@ To get started, create a `.env` file containing your OpenAI credentials and mode
 
 ```env
 OPENAI_API_KEY=your-api-key
-OPENAI_MODEL=gpt-4o
-OPENAI_TEMPERATURE=0.7
-OPENAI_MAX_TOKENS=1000
 ```
 
 The CLI also expects a configuration directory located at `~/.ytGPT` by default.  
