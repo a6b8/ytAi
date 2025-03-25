@@ -36,31 +36,39 @@ class YouGPT {
     }
 
 
-    async getTranscript( { url } ) {
-        const { status, result } = await this.#transcript.fetch( { url } )
+    async getTranscript( { videoId } ) {
+        const { status, result } = await this.#transcript.fetch( { videoId } )
+        return { status, result }
+    }
+
+
+    async getAi( { userMessage, fileStrings, assistantId } ) {
+        const { status, result } = await this.#ai
+            .askWithFiles( { userMessage, fileStrings, assistantId } )
         return { status, result }
     }
     
-
-    async transcriptToAI( { url, assistantId, userMessage } ) {
+/*
+    async transcriptToAI( { videoId, assistantId, userMessage } ) {
         const struct = {
             'status': false,
             'transcript': null,
             'ai': null
         }
 
-        const { status: tStatus, result: tResult } = await this.#transcript.fetch( { url } )
+        const { status: tStatus, result: tResult } = await this.#transcript.fetch( { videoId } )
         struct['transcript'] = tResult
         if( tStatus === false ) { return struct }
 
         const { transcript: fileString } = tResult
-        const { status: aStatus, result: aResult } = await this.#ai
-            .askWithFile( { userMessage, fileString, assistantId } )
+        const fileStrings = [ fileString ]
+
         struct['ai'] = aResult
         if( aStatus === true && tStatus === true ) { struct['status'] = true }
 
         return struct
     }
+*/
 }
 
 

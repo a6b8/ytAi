@@ -12,8 +12,9 @@ const config = {
     'cli': {
         'processingModeDefault': 'transcriptAndAI',
         'processingModes': [ 
-            [ 'onlyTranscript',  '📝 Only Transcript'   ],
-            [ 'transcriptAndAI', '🧠 Transcript and AI' ],
+            // [ 'onlyTranscript',  '📝 Only Transcript'   ],
+            [ 'transcriptAndAI', '🧠 Generate Transcript and use Assistant' ],
+            [ 'onlyAI',         '🧠 Onyl use Assistant'            ],
             [ 'manageAssistant', '🧩 Manage Assistant'  ] 
         ],
         'headline': {
@@ -46,6 +47,11 @@ const config = {
                         'type': 'integer'
                     }
                 }
+            }
+        },
+        'assistant': {
+            'default': {
+                'response_format': 'auto' 
             }
         }
     }

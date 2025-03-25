@@ -4,7 +4,7 @@ import { YoutubeTranscript } from 'youtube-transcript'
 class Transcript {
     constructor() {}
 
-    async fetch( { url } ) {
+    async fetch( { videoId } ) {
         const struct = {
             'status': true,
             'result': {
@@ -13,19 +13,18 @@ class Transcript {
             }
         }
 
-        let str = ''
-        let videoId = ''
-
         try {
+/*
             const videoId = url
                 .split( "v=" )[ 1 ]
                 .split("&")[ 0 ]
+*/
             const transcriptRaw = await YoutubeTranscript
                 .fetchTranscript( videoId )
             const transcript = transcriptRaw 
                 .map( entry => entry.text )
                 .join( "\n" )
-            struct['result'] = { transcript, videoId }
+            struct['result'] = transcript
         } catch (error) {
             struct['status'] = false
             console.error( "❌ Error fetching transcript:", error )

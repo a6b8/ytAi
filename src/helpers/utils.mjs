@@ -1,4 +1,7 @@
 import os from 'os'
+import url from 'url'
+import querystring from 'querystring'
+
 
 
 function modifyPath( { path } ) {
@@ -57,4 +60,17 @@ function envToObject( { envContent, selection } ) {
 }
 
 
-export { modifyPath, envToObject}
+function getKeyValueFromUrl( { url } ) {
+    const myUrl = new URL( url )
+
+    const result = [ ...myUrl.searchParams ]
+        .reduce( ( acc, [ key, value ] ) => {
+            acc[key] = value
+            return acc
+        }, {} )
+
+    return result
+}
+
+
+export { modifyPath, envToObject, getKeyValueFromUrl }
