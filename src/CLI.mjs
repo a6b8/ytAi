@@ -443,8 +443,8 @@ class CLI {
                 'name': 'input',
                 'message': 'Enter the YouTube Video URL:',
                 'validate': ( value ) => {
-                    const isFullUrl = value.includes('youtube.com/watch?v=');
-                    const isVideoId = /^[\w-]{11}$/.test(value);
+                    const isFullUrl = value.includes( 'youtube.com/watch?v=' )
+                    const isVideoId = /^[\w-]{11}$/.test( value )
                     if (isFullUrl || isVideoId) { return true }
 
                     return 'Please enter a valid YouTube URL or Video ID (11 characters)';
@@ -472,7 +472,7 @@ class CLI {
         }
 
         const { suffix } = this.#state['userConfig']['activeAssistants'][ assistantName ]
-        const n = [
+        const filePaths = [
             createTransscript ? [ 'transcript.txt', fileStrings[ 0 ] ] : null,
             [ `${assistantName}${suffix}`, aiAnswer ]
         ]
@@ -480,10 +480,6 @@ class CLI {
             .map( ( a ) => {
                 const [ name, content ] = a
                 const _p = path.join( p, name )
-                if( fs.existsSync( _p ) ) {
-                    console.log( 'File exists:', _p )
-                    return false
-                }
 
                 let str = ''
                 str += `https://www.youtube.com/watch?v=${videoId}\n`
@@ -491,11 +487,24 @@ class CLI {
                 str += `\n\n---\n\n`
                 str += content
 
+                if( fs.existsSync( _p ) ) {
+                    console.log( 'File exists:', _p )
+// generate unix timestamp
+                    const unixTimestamp = new Date().getTime()
+                    const [ name, ext ] = _p.split( '.' )
+                    const __p = `${name}--${unixTimestamp}.${ext}`
+                    fs.writeFileSync( __p, str, 'utf-8' )
+
+                    return __p
+                }
+
+
+
                 fs.writeFileSync( _p, str, 'utf-8' )
                 return _p
             } )
 
-        return true
+        return filePaths
     }
 
 }
