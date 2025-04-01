@@ -107,17 +107,30 @@ class CLI {
         const { configFolder, userConfigName } = this.#config['environment']
         const defaultPath = modifyPath( { 'path': configFolder } )
 
-        const { configFolderPath } = await inquirer.prompt( [
-            {
-                'type': 'input',
-                'name': 'configFolderPath',
-                'message': 'Enter the config folder path:',
-                'default': defaultPath
+      //   let _configFilePath
+        let _configFolderPath
+        try {
+            const _p = path.join( defaultPath, userConfigName )
+            if( fs.existsSync( _p ) === false ) {
+                throw new Error( `File ${_p} does not exist` )
             }
-        ] )
+            _configFolderPath = defaultPath
+
+        } catch ( e ) {
+            const { configFolderPath } = await inquirer.prompt( [
+                {
+                    'type': 'input',
+                    'name': 'configFolderPath',
+                    'message': 'Enter the config folder path:',
+                    'default': defaultPath
+                }
+            ] )
+             _configFolderPath = configFolderPath
+        }
+
 
         const envFilePath = path.join( 
-            configFolderPath, 
+            _configFolderPath, 
             this.#config['environment']['envName'] 
         )
 
@@ -130,18 +143,19 @@ class CLI {
             process.exit( 1 )
         }
 
-        const configPath = path.join( configFolderPath, userConfigName )
-        if( fs.accessSync( configPath, fs.constants.R_OK ) ) {
+        const configFilePath = path.join( _configFolderPath, userConfigName )
+        if( fs.accessSync( configFilePath, fs.constants.R_OK ) ) {
             console.log( 
                 chalk.red( 
-                    `File ${configPath} does not exist or is not readable`
+                    `File ${configFilePath} does not exist or is not readable`
                 ) 
             )
             process.exit( 1 )
         }
-        const { userConfig } = await import( configPath )
 
-        return { configFolderPath, envFilePath, userConfig }
+        const { userConfig } = await import( configFilePath )
+
+        return { 'configFolderPath': _configFolderPath, envFilePath, userConfig }
     }
 
 
@@ -149,8 +163,12 @@ class CLI {
         const { outputFolder } = this.#config['environment'] 
         const defaultPath = modifyPath( { 'path': outputFolder } )
 
-        const { defaultFolder } = this.#state['userConfig']
-        const userFolder = modifyPath( { 'path': defaultFolder } )
+        const { output: { folder, setFolderAutomatically } } = this.#state['userConfig']
+        const userFolder = modifyPath( { 'path': folder } )
+        if( setFolderAutomatically ) {
+            console.log( '✔ Autodetect output folder:', folder)
+            return { 'outputFolderPath': userFolder }
+        }
 
         const { selection } = await inquirer.prompt( [
             {
@@ -497,8 +515,6 @@ class CLI {
 
                     return __p
                 }
-
-
 
                 fs.writeFileSync( _p, str, 'utf-8' )
                 return _p
